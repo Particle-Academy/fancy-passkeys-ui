@@ -78,9 +78,14 @@ export interface PasskeyCeremonyErrorOptions {
 export class PasskeyCeremonyError extends Error {
   readonly code: PasskeyCeremonyErrorCode;
   /**
-   * The backend's own error code, preserved verbatim. A server that says
-   * `counter_regressed` is saying something a UI may want to act on, and
-   * flattening it to `ceremony_failed` throws that away.
+   * The backend's own error code, preserved verbatim rather than flattened
+   * into `ceremony_failed`.
+   *
+   * Note that the first-party backends deliberately redact
+   * `unknown_credential`, `user_handle_mismatch` and `counter_regressed` to
+   * `verification_failed` before they reach the wire — each answers a question
+   * about a credential the server holds, and an unauthenticated caller has no
+   * business asking. Do not branch on those three; they will never arrive.
    */
   readonly serverCode?: string;
   readonly status?: number;
@@ -170,8 +175,8 @@ function messageOf(err: unknown, fallback: string): string {
  *
  * An error that is already a `PasskeyCeremonyError` (including a
  * {@link PasskeyServerError}) is returned untouched — that is what stops a
- * server's `counter_regressed` being flattened into `ceremony_failed` by a
- * caller that normalises defensively.
+ * server's own code being flattened into `ceremony_failed` by a caller that
+ * normalises defensively.
  */
 export function normalizeCeremonyError(err: unknown): PasskeyCeremonyError {
   if (err instanceof PasskeyCeremonyError) return err;

@@ -285,9 +285,21 @@ renders `status: "cancelled"` as a muted hint and nothing louder.
 A 4xx from either backend becomes a `PasskeyServerError` — a subclass, so
 `instanceof PasskeyCeremonyError` still catches it — carrying the server's own
 code verbatim on `serverCode`. That code is never flattened into
-`ceremony_failed`: a backend saying `counter_regressed` is telling you a
-credential may have been cloned, and losing that in normalisation loses the one
-signal the counter exists to produce.
+`ceremony_failed`; whatever a backend said, you get to read it.
+
+**What the first-party backends actually send.** Both deliberately redact three
+codes to `verification_failed` on the wire — `unknown_credential`,
+`user_handle_mismatch`, and `counter_regressed` — because each one answers a
+question about a credential the server holds ("is this registered here?",
+"whose is it?", "do you think it was cloned?") for an unauthenticated caller.
+They remain precise in the server's own logs and events.
+
+So do **not** build UI that branches on those three: against
+`particle-academy/fancy-passkeys` or `@particle-academy/fancy-passkeys` they
+will never arrive. A clone detection reaches the user through the app's own
+notification path, after the app has identified them — not through a login
+error a stranger can read. `serverCode` still exists for the other codes, and
+for a custom backend that chooses to send more.
 
 ---
 

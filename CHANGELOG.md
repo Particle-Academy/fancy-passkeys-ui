@@ -28,9 +28,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the `XSRF-TOKEN` cookie when none is given).
 - `PasskeyCeremonyError` and `PasskeyServerError` — every rejection from
   `./client` is typed. A backend's own `PasskeyErrorCode` survives on
-  `serverCode` instead of being flattened to `ceremony_failed`; a server saying
-  `counter_regressed` is reporting a possible clone, and normalising that away
-  loses the one signal the signature counter exists to produce.
+  `serverCode` instead of being flattened to `ceremony_failed`.
+  Note that the first-party backends redact `unknown_credential`,
+  `user_handle_mismatch` and `counter_regressed` to `verification_failed`
+  before they reach the wire, so do not branch on those three — see the
+  README's Human+ section.
 - `authenticateWithPasskey` accepts an `AbortSignal`, wired to
   `WebAuthnAbortService.cancelCeremony()` so tearing down a conditional-UI
   request actually closes the browser prompt rather than walking away from it.
