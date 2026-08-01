@@ -44,6 +44,19 @@ Import the stylesheet once, anywhere in your app:
 import "@particle-academy/fancy-passkeys-ui/styles.css";
 ```
 
+**If you use the React surfaces, point Tailwind at react-fancy's dist too.**
+Tailwind v4 does not scan `node_modules`, and these surfaces render react-fancy's
+`Button` / `Badge` / `Callout` / `Input` — so without this line everything mounts,
+behaves, and comes out completely unstyled:
+
+```css
+/* your app.css, beside `@import "tailwindcss";` */
+@source '../node_modules/@particle-academy/react-fancy/dist/**/*.{js,cjs,mjs}';
+```
+
+This package's own classes ship in its stylesheet, so it needs no `@source` of
+its own.
+
 ---
 
 ## Quickstart
@@ -352,49 +365,53 @@ back into a bearer token.
 So the boundary is drawn where the cryptography already draws it, and the
 package is honest about which side of it each affordance lives on.
 
-### Sketch: `registerPasskeyBridge` — **not shipped in v1**
+### The MCP bridge: `registerPasskeyBridge`
 
-The MCP bridge below is a **sketch**, not code in this package. It is here so the
-shape is on the record — and so the *absence* in it is legible as a decision
-rather than an oversight.
+The bridge ships in **`@particle-academy/agent-integrations` ≥ 0.34.0**, not in
+this package — bridges live with the MCP layer, so a consumer who wants the
+surfaces without an agent installs nothing extra.
 
-```ts
-// SKETCH — NOT SHIPPED IN v1. Illustrative only.
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { PasskeySummary } from "@particle-academy/fancy-passkeys-ui/client";
-
-export interface PasskeyBridgeAdapter {
-  list(): Promise<PasskeySummary[]>;
-  rename(input: { id: string; name: string }): Promise<void>;
-  /** Stages a revoke for human confirmation. Never revokes outright. */
-  proposeRevoke(input: { id: string }): Promise<{ staged: true; isLastPasskey: boolean }>;
-  /** Opens the enrollment prompt on the human's screen and returns immediately. */
-  beginEnrollment(input?: { name?: string }): Promise<{ awaitingHuman: true }>;
-}
-
-export function registerPasskeyBridge(
-  server: McpServer,
-  { adapter }: { adapter: PasskeyBridgeAdapter },
-): void {
-  server.tool("passkey_list", "List the signed-in user's passkeys.", {}, async () => ({
-    content: [{ type: "text", text: JSON.stringify(await adapter.list()) }],
-  }));
-
-  server.tool("passkey_rename", "Rename one passkey, by credential ID.", RenameSchema, /* … */);
-
-  // Proposes only. The human confirms in the UI — revoking the last passkey is
-  // a lockout, which is exactly the destructive action a staged write exists for.
-  server.tool("passkey_revoke", "Propose revoking one passkey.", RevokeSchema, /* … */);
-
-  // Opens the prompt. The ceremony completes on the human's authenticator or it
-  // does not complete at all.
-  server.tool("passkey_begin_enrollment", "Start enrolling a passkey.", EnrollSchema, /* … */);
-
-  // ── There is deliberately NO tool here that completes a ceremony. ──────────
-  // No `passkey_authenticate`, no `passkey_sign_in`, no `passkey_complete`.
-  // That absence IS the design. Do not "finish" this bridge by adding one.
-}
+```bash
+npm install @particle-academy/agent-integrations
 ```
+
+```tsx
+import { ToolRegistry } from "@particle-academy/agent-integrations/mcp";
+import { registerPasskeyBridge } from "@particle-academy/agent-integrations/bridges/passkeys";
+
+const bridge = registerPasskeyBridge(host, {
+  adapter: {
+    // The same callbacks you already handed <PasskeyManager />.
+    list: () => passkeys,
+    rename: ({ id, name }) => api.rename(id, name),
+    // STAGES it — sets `pendingRevoke`, which renders the confirm dialog.
+    // Wiring this to a delete call removes the human from the loop the whole
+    // bridge is built around.
+    proposeRevoke: ({ id }) =>
+      setState((s) => ({ ...s, pendingRevoke: { id, isLastPasskey: s.passkeys.length <= 1 } })) ?? {
+        staged: true,
+        isLastPasskey: passkeys.length <= 1,
+      },
+    beginEnrollment: () => startEnrollment(),
+    support: () => ({ supported: isPasskeySupported() }),
+    state: () => ({ status: state.status, error: state.error, pendingRevoke: state.pendingRevoke }),
+  },
+});
+```
+
+| Tool | |
+|---|---|
+| `passkey_list` | The user's credentials, re-projected onto the public summary fields — a public key or user handle on your record never reaches the agent |
+| `passkey_status` | Browser support + what the surface is showing, and `canCompleteCeremony: false` said out loud |
+| `passkey_rename` | Relabel by credential ID. Immediate, undoable with `agent_undo`; `confirmRename: true` gates it behind a host hook |
+| `passkey_revoke` | **Stages** a revoke for the human. Never revokes; there is no `confirm` argument, and the schema rejects one |
+| `passkey_begin_enrollment` | Opens the prompt and returns. The ceremony finishes on the human's authenticator |
+
+There is deliberately **no** tool that completes a ceremony — no
+`passkey_authenticate`, no `passkey_sign_in`, no `passkey_complete`. That absence
+IS the design, and agent-integrations pins it with a test that asserts the
+registered tool names against a closed list, so "finishing" the bridge fails CI
+rather than shipping.
 
 ---
 

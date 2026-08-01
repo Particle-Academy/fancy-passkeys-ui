@@ -55,9 +55,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - **No agent can complete a ceremony, by construction.** The surfaces expose
   state and intent; `navigator.credentials.get()` needs a user gesture and a
-  biometric, and neither is something a bridge can supply. The sketched MCP
-  bridge deliberately has no ceremony-completing tool — that absence is the
-  design, not an omission.
+  biometric, and neither is something a bridge can supply. The MCP bridge
+  (`registerPasskeyBridge`, shipped in `@particle-academy/agent-integrations`
+  ≥ 0.34.0) has no ceremony-completing tool — that absence is the design, not an
+  omission, and a test there asserts the tool names against a closed list so it
+  cannot be "finished" into existence.
 - Revoking a passkey is `pendingMode`-capable, and the last remaining passkey
   is flagged as a lockout in the confirmation payload rather than being
   silently revoked.
@@ -70,6 +72,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Notes
 
+- **Tailwind needs an `@source` line for react-fancy's dist, and the README now
+  says so.** Tailwind v4 does not scan `node_modules`; without it the surfaces
+  mount and behave perfectly and render completely unstyled — which is exactly
+  what the first browser render of this package produced. This package's own
+  classes ship in its stylesheet and need no `@source`.
 - **No `listPasskeys()` in `./client`.** The wire contract defines four
   endpoints and all four are ceremony endpoints. Listing, renaming and revoking
   are ordinary CRUD over the app's own model, so `PasskeyManager` is fully
