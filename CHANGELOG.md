@@ -11,6 +11,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## 0.1.0 — 2026-08-01
+
+**First published release.** Passkey sign-in and passkey management, plus a React-free `/client` subpath for the browser ceremony. Its MCP bridge is **management-only by design** — no tool completes a ceremony, because a gesture plus biometric is something only the human has.
+
 ### Added
 
 - Initial implementation. **Not published** — no npm release and no tag exists
