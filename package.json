@@ -1,7 +1,7 @@
 {
   "name": "@particle-academy/fancy-passkeys-ui",
-  "version": "0.2.0",
-  "description": "React surfaces for passkey (WebAuthn) sign-in and passkey management, plus a React-free browser-ceremony subpath. Controlled, JSON-serializable, agent-bridgeable — and deliberately not agent-completable.",
+  "version": "0.2.1",
+  "description": "React surfaces for passkey (WebAuthn) sign-in and passkey management, plus a React-free browser-ceremony subpath. Controlled, JSON-serializable, agent-bridgeable \u2014 and deliberately not agent-completable.",
   "keywords": [
     "passkey",
     "passkeys",

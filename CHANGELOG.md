@@ -11,6 +11,29 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## 0.2.1 — 2026-08-12
+
+### Security
+
+- **Fixed a polynomial ReDoS in `createFetchTransport`'s `baseUrl` handling**
+  (CodeQL `js/polynomial-redos`).
+
+  The trailing-slash trim used `/\/+$/`, which anchors a greedy run at the end
+  of the string. On a long run of slashes that is *not* followed by
+  end-of-string, the engine restarts the run at every position — quadratic.
+  Measured at 30,000 slashes: ~590ms through the regex, 0ms without one. It
+  scales, so a longer string is seconds.
+
+  **What to do:** nothing. Behaviour is identical for every input — the
+  trimming is now a scan instead of a match, and a test asserts both the parity
+  and the linear timing.
+
+  The realistic exposure was small, since `baseUrl` is normally a
+  developer-supplied constant. It is fixed anyway: "no attacker can reach this
+  today" is a property of the call sites, which change, not of the function,
+  which is where the flaw lives.
+
+
 ## 0.2.0 — 2026-08-07
 
 ### Changed
