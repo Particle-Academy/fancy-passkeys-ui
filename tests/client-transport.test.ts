@@ -17,20 +17,26 @@ import { createFetchTransport } from "../src/client";
  * which is where the flaw is.
  */
 describe("baseUrl normalisation", () => {
-  const strip = (baseUrl: string): string => {
+  const strip = async (baseUrl: string): Promise<string> => {
     // The transport keeps its normalised baseUrl private and calls the GLOBAL
     // fetch, so exercise it the way a consumer would and read the URL back off
     // the request.
     let seen = "";
     const original = globalThis.fetch;
 
+    // The stub has to satisfy what the transport actually reads -- it calls
+    // `response.text()`, not `.json()`. An incomplete stub rejects INSIDE the
+    // transport, and because the rejection surfaces after the assertion it
+    // passes locally and fails on CI as an unhandled rejection.
     globalThis.fetch = (async (url: string) => {
       seen = String(url);
-      return { ok: true, status: 200, json: async () => ({}) };
+      return { ok: true, status: 200, text: async () => "{}" };
     }) as unknown as typeof fetch;
 
     try {
-      void createFetchTransport({ baseUrl }).post("/x");
+      // Awaited, not `void`-ed: a floating promise here is exactly how the
+      // above went unnoticed.
+      await createFetchTransport({ baseUrl }).post("/x");
     } finally {
       globalThis.fetch = original;
     }
@@ -38,18 +44,18 @@ describe("baseUrl normalisation", () => {
     return seen.slice(0, seen.length - "/x".length);
   };
 
-  it("strips trailing slashes", () => {
-    expect(strip("/passkeys/")).toBe("/passkeys");
-    expect(strip("/passkeys///")).toBe("/passkeys");
-    expect(strip("/passkeys")).toBe("/passkeys");
-    expect(strip("https://example.com/auth//")).toBe("https://example.com/auth");
+  it("strips trailing slashes", async () => {
+    expect(await strip("/passkeys/")).toBe("/passkeys");
+    expect(await strip("/passkeys///")).toBe("/passkeys");
+    expect(await strip("/passkeys")).toBe("/passkeys");
+    expect(await strip("https://example.com/auth//")).toBe("https://example.com/auth");
   });
 
-  it("collapses a path that is nothing but slashes", () => {
-    expect(strip("///")).toBe("");
+  it("collapses a path that is nothing but slashes", async () => {
+    expect(await strip("///")).toBe("");
   });
 
-  it("normalises a pathological run of slashes in linear time", () => {
+  it("normalises a pathological run of slashes in linear time", async () => {
     // The regression guard. Against the old `/\/+$/` this takes hundreds of
     // milliseconds and grows quadratically; the scanning version is immediate.
     // The threshold is deliberately loose — this must not fail on a slow CI
@@ -58,7 +64,7 @@ describe("baseUrl normalisation", () => {
     const evil = `/a${"/".repeat(30_000)}x`;
 
     const started = Date.now();
-    const result = strip(evil);
+    const result = await strip(evil);
     const elapsed = Date.now() - started;
 
     // Not merely fast — still correct. A guard that only timed the call would
