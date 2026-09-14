@@ -1,5 +1,7 @@
 # @particle-academy/fancy-passkeys-ui
 
+[![Fancified](art/fancified.svg)](https://particle.academy)
+
 React surfaces for **passkey (WebAuthn) sign-in and passkey management**, plus a
 **React-free browser-ceremony subpath** that works from any frontend.
 
@@ -12,7 +14,7 @@ wire, so the same React surface works against either one:
 | `@particle-academy/fancy-passkeys` (npm) | Node | Server twin. Wraps `@simplewebauthn/server`. |
 | **`@particle-academy/fancy-passkeys-ui`** (npm) | Browser | **This package.** React surfaces + `./client`. |
 
-> **Pre-1.0, and not yet published.** Breaking changes land in MINOR releases
+> **Pre-1.0.** Breaking changes land in MINOR releases
 > until 1.0.0. Read `CHANGELOG.md` before upgrading a minor.
 
 ---
