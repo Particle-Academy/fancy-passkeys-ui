@@ -1,7 +1,8 @@
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 import { Badge, Button, Callout, Input, cn } from "@particle-academy/react-fancy";
 import { normalizeCeremonyError } from "./client";
 import { activityEvent, isoDate } from "./activity";
+import { useSettledChange } from "./settle";
 import type { PasskeyActivityEvent, PasskeyStateError, PasskeySummary } from "./types";
 
 export interface PasskeyPendingRevoke {
@@ -70,10 +71,13 @@ export function PasskeyManager({
   emptyLabel = "No passkeys yet.",
   className,
 }: PasskeyManagerProps) {
-  // See PasskeySignIn: read the latest rendered state when an async handler
-  // resolves, so the full-state emission reflects what the surface now shows.
-  const valueRef = useRef(value);
-  valueRef.current = value;
+  // `valueRef` is the latest rendered state, for emissions made synchronously
+  // from an event. Anything emitted AFTER awaiting a host callback goes
+  // through `settle`, which builds it from the state the host has committed:
+  // a host may write into this same bound state inside the callback (the
+  // README's onEnroll does), and an emission built from the last render would
+  // overwrite that write. See useSettledChange.
+  const { latest: valueRef, settle } = useSettledChange(value, onChange);
 
   const emit = useCallback(
     (event: PasskeyActivityEvent) => {
@@ -89,10 +93,11 @@ export function PasskeyManager({
         code: failure.serverCode ?? failure.code,
         message: failure.message,
       };
-      onChange({ ...valueRef.current, status: "error", error });
+      // Only ever called after an awaited host callback threw.
+      settle((current) => ({ ...current, status: "error", error }));
       emit(activityEvent(surfaceId, "error", target, { code: error.code }));
     },
-    [emit, onChange, surfaceId],
+    [emit, settle, surfaceId],
   );
 
   const startRename = useCallback(
@@ -118,8 +123,7 @@ export function PasskeyManager({
       onChange({ ...valueRef.current, status: "busy", error: null });
       try {
         await onRename?.({ id, name });
-        const current = valueRef.current;
-        onChange({
+        settle((current) => ({
           ...current,
           passkeys: current.passkeys.map((passkey) =>
             passkey.id === id ? { ...passkey, name: name.length > 0 ? name : null } : passkey,
@@ -128,12 +132,12 @@ export function PasskeyManager({
           draftName: "",
           status: "idle",
           error: null,
-        });
+        }));
       } catch (err) {
         fail(err, id);
       }
     },
-    [emit, fail, onChange, onRename, surfaceId],
+    [emit, fail, onChange, onRename, settle, surfaceId],
   );
 
   const performRevoke = useCallback(
@@ -141,20 +145,19 @@ export function PasskeyManager({
       onChange({ ...valueRef.current, status: "busy", error: null });
       try {
         await onRevoke?.({ id });
-        const current = valueRef.current;
-        onChange({
+        settle((current) => ({
           ...current,
           passkeys: current.passkeys.filter((passkey) => passkey.id !== id),
           pendingRevoke: null,
           renamingId: current.renamingId === id ? null : current.renamingId,
           status: "idle",
           error: null,
-        });
+        }));
       } catch (err) {
         fail(err, id);
       }
     },
-    [fail, onChange, onRevoke],
+    [fail, onChange, onRevoke, settle],
   );
 
   const proposeRevoke = useCallback(
@@ -196,11 +199,13 @@ export function PasskeyManager({
     onChange({ ...valueRef.current, status: "busy", error: null });
     try {
       await onEnroll?.();
-      onChange({ ...valueRef.current, status: "idle", error: null });
+      // The host may have written the new passkey into this bound state
+      // inside onEnroll; settle so this emission keeps it.
+      settle((current) => ({ ...current, status: "idle", error: null }));
     } catch (err) {
       fail(err);
     }
-  }, [emit, fail, onChange, onEnroll, surfaceId]);
+  }, [emit, fail, onChange, onEnroll, settle, surfaceId]);
 
   const busy = value.status === "busy";
 

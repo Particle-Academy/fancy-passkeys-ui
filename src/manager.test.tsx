@@ -327,3 +327,124 @@ describe("PasskeyManager credential detail", () => {
     expect(screen.getByRole("alert").textContent).toContain("That passkey is gone.");
   });
 });
+
+/**
+ * The host writes the new passkey into the SAME state the manager is bound to,
+ * from inside `onEnroll`. That is the README's own example, and the obvious way
+ * to write it. The `passkeys` lab benchmark (2026-11-13) found the manager then
+ * dropped the passkey: once `onEnroll` resolved it emitted `status: "idle"` on
+ * top of the state it had last RENDERED, which did not have the passkey yet, and
+ * the host's `setState` took that as the whole next state. The server listed
+ * the passkey; the surface did not.
+ */
+describe("PasskeyManager enrolment written into the bound state", () => {
+  const NEW_KEY = passkey({ id: "cred-new", name: "This device" });
+
+  function ReadmeHost({ initial, register }: { initial: PasskeyManagerState; register: () => Promise<PasskeySummary> }) {
+    const [state, setState] = useState(initial);
+    return (
+      <PasskeyManager
+        value={state}
+        onChange={setState}
+        onEnroll={async () => {
+          const credential = await register();
+          setState((prev) => ({ ...prev, passkeys: [...prev.passkeys, credential] }));
+        }}
+      />
+    );
+  }
+
+  it("keeps a passkey added the way the README shows", async () => {
+    render(<ReadmeHost initial={baseState([LAPTOP])} register={async () => NEW_KEY} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /add a passkey/i }));
+
+    await waitFor(() =>
+      expect(document.querySelector('[data-fancy-passkey-surface]')?.getAttribute("data-fancy-passkey-status")).toBe("idle"),
+    );
+    expect(document.querySelector('[data-fancy-passkey-item="cred-new"]')).not.toBeNull();
+    expect(document.querySelector('[data-fancy-passkey-item="cred-laptop"]')).not.toBeNull();
+  });
+
+  it("keeps a passkey added after a list refresh, with other host state updated after it", async () => {
+    // The lab app's shape: re-read the server's list into the bound state,
+    // then touch unrelated host state, all inside onEnroll.
+    function RefreshHost() {
+      const [state, setState] = useState(baseState([]));
+      const [, setCount] = useState(0);
+      return (
+        <PasskeyManager
+          value={state}
+          onChange={setState}
+          onEnroll={async () => {
+            await Promise.resolve();
+            const listed = await Promise.resolve([NEW_KEY]);
+            setState((prev) => ({ ...prev, passkeys: listed }));
+            setCount((n) => n + 1);
+          }}
+        />
+      );
+    }
+    render(<RefreshHost />);
+
+    fireEvent.click(screen.getByRole("button", { name: /add a passkey/i }));
+
+    await waitFor(() =>
+      expect(document.querySelector('[data-fancy-passkey-surface]')?.getAttribute("data-fancy-passkey-status")).toBe("idle"),
+    );
+    expect(document.querySelector('[data-fancy-passkey-item="cred-new"]')).not.toBeNull();
+  });
+
+  it("still reports a failed enrolment, keeping what the host wrote before it failed", async () => {
+    function FailingHost() {
+      const [state, setState] = useState(baseState([LAPTOP]));
+      return (
+        <PasskeyManager
+          value={state}
+          onChange={setState}
+          onEnroll={async () => {
+            setState((prev) => ({ ...prev, passkeys: [...prev.passkeys, NEW_KEY] }));
+            throw Object.assign(new Error("nope"), { name: "NotAllowedError" });
+          }}
+        />
+      );
+    }
+    render(<FailingHost />);
+
+    fireEvent.click(screen.getByRole("button", { name: /add a passkey/i }));
+
+    await waitFor(() =>
+      expect(document.querySelector('[data-fancy-passkey-surface]')?.getAttribute("data-fancy-passkey-status")).toBe("error"),
+    );
+    expect(document.querySelector('[data-fancy-passkey-item="cred-new"]')).not.toBeNull();
+  });
+
+  it("does not drop a name the host renamed in the bound state inside onRevoke", async () => {
+    // Same seam on revoke: the host re-reads its list (here a rename landed
+    // server-side meanwhile) and the manager filters the revoked row out of
+    // the LATEST state, not the one it last rendered.
+    function RevokeHost() {
+      const [state, setState] = useState(baseState([LAPTOP, PHONE]));
+      return (
+        <PasskeyManager
+          value={state}
+          onChange={setState}
+          pendingMode={false}
+          onRevoke={async () => {
+            await Promise.resolve();
+            setState((prev) => ({
+              ...prev,
+              passkeys: prev.passkeys.map((p) => (p.id === "cred-laptop" ? { ...p, name: "Work laptop" } : p)),
+            }));
+          }}
+        />
+      );
+    }
+    render(<RevokeHost />);
+
+    fireEvent.click(action("cred-phone", "revoke"));
+
+    await waitFor(() => expect(document.querySelector('[data-fancy-passkey-item="cred-phone"]')).toBeNull());
+    expect(document.querySelector('[data-fancy-passkey-name="cred-laptop"]')?.textContent).toBe("Work laptop");
+  });
+});

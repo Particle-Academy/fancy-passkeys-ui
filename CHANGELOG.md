@@ -31,6 +31,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Test environment: jsdom moved to 30 (devDependency only), dropping the deprecated `whatwg-encoding`. Consumer action: none.
 
+### Fixed
+
+- **`PasskeyManager` no longer drops a passkey it just enrolled** when
+  `onEnroll` writes it into the bound state, which is exactly what the README's
+  example does (`setState((prev) => ({ ...prev, passkeys: [...] }))`). Once
+  `onEnroll` resolved, the manager emitted `status: "idle"` on top of the state
+  it had last rendered, which did not have the passkey yet, and a host whose
+  `onChange` is `setState` took that as the whole next state. The server listed
+  the passkey and the surface did not (found by the `passkeys` lab benchmark).
+  Every emission made after awaiting a host callback (`onEnroll`, `onRename`,
+  `onRevoke`, and the error state when one throws) is now built from the state
+  the host has committed, after its queued updates render. It is still the FULL
+  next state. **Consumer action:** none; the README pattern now works as shown.
+
 ### Security
 
 - Update Vitest to 4.1.12 for security fixes; dev toolchain only, nothing to do.
