@@ -11,6 +11,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **`@simplewebauthn/browser` 14 is supported.** The peer range widens from
+  `^13.0.0` to `>=13.3.0 <15`; the suite and typecheck pass on 13.3.0 and
+  14.0.0, and CI now tests the 13.3.0 floor as well as the locked 14. v14's
+  browser changes are additive (`sendSignal()`, `browserSupportsPasskeys()`,
+  `getBrowserCapabilities()`) plus a Node 22 floor this package already had.
+  **Consumer action:** none. Widening only adds versions; if you are on 13.0
+  to 13.2, move to 13.3 or later. Pairs with `@particle-academy/fancy-passkeys`
+  accepting `@simplewebauthn/server` 14.
+
 ### Changed
 
 - **Releases need a lab-run certificate.** `publish.yml` gains a read-only
