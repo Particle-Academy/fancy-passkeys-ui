@@ -30,6 +30,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   do nothing; this changes how releases are cut, not what the package does.
 
 - Test environment: jsdom moved to 30 (devDependency only), dropping the deprecated `whatwg-encoding`. Consumer action: none.
+- Rebranded the display name to Fancy Dev Kit (README and package description). Package names, the npm scope, URLs and the `fancy-ui` MCP id are unchanged.
 
 ### Fixed
 
