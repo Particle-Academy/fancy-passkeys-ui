@@ -19,6 +19,13 @@ wire, so the same React surface works against either one:
 
 ---
 
+<!-- fancy-agents-note:start -->
+> **For agents.** This package is listed on the Fancy MCP catalog server at
+> `https://ui.particle.academy/mcp` (streamable HTTP, no API key; MCP id `fancy-ui`),
+> with install commands and docs, alongside the rest of the kit. How an agent
+> installs and uses this package is in [AGENTS.md](https://github.com/Particle-Academy/fancy-passkeys-ui/blob/main/AGENTS.md).
+<!-- fancy-agents-note:end -->
+
 ## Install
 
 ```bash
@@ -369,51 +376,7 @@ package is honest about which side of it each affordance lives on.
 
 ### The MCP bridge: `registerPasskeyBridge`
 
-The bridge ships in **`@particle-academy/agent-integrations` ≥ 0.34.0**, not in
-this package — bridges live with the MCP layer, so a consumer who wants the
-surfaces without an agent installs nothing extra.
-
-```bash
-npm install @particle-academy/agent-integrations
-```
-
-```tsx
-import { ToolRegistry } from "@particle-academy/agent-integrations/mcp";
-import { registerPasskeyBridge } from "@particle-academy/agent-integrations/bridges/passkeys";
-
-const bridge = registerPasskeyBridge(host, {
-  adapter: {
-    // The same callbacks you already handed <PasskeyManager />.
-    list: () => passkeys,
-    rename: ({ id, name }) => api.rename(id, name),
-    // STAGES it — sets `pendingRevoke`, which renders the confirm dialog.
-    // Wiring this to a delete call removes the human from the loop the whole
-    // bridge is built around.
-    proposeRevoke: ({ id }) =>
-      setState((s) => ({ ...s, pendingRevoke: { id, isLastPasskey: s.passkeys.length <= 1 } })) ?? {
-        staged: true,
-        isLastPasskey: passkeys.length <= 1,
-      },
-    beginEnrollment: () => startEnrollment(),
-    support: () => ({ supported: isPasskeySupported() }),
-    state: () => ({ status: state.status, error: state.error, pendingRevoke: state.pendingRevoke }),
-  },
-});
-```
-
-| Tool | |
-|---|---|
-| `passkey_list` | The user's credentials, re-projected onto the public summary fields — a public key or user handle on your record never reaches the agent |
-| `passkey_status` | Browser support + what the surface is showing, and `canCompleteCeremony: false` said out loud |
-| `passkey_rename` | Relabel by credential ID. Immediate, undoable with `agent_undo`; `confirmRename: true` gates it behind a host hook |
-| `passkey_revoke` | **Stages** a revoke for the human. Never revokes; there is no `confirm` argument, and the schema rejects one |
-| `passkey_begin_enrollment` | Opens the prompt and returns. The ceremony finishes on the human's authenticator |
-
-There is deliberately **no** tool that completes a ceremony — no
-`passkey_authenticate`, no `passkey_sign_in`, no `passkey_complete`. That absence
-IS the design, and agent-integrations pins it with a test that asserts the
-registered tool names against a closed list, so "finishing" the bridge fails CI
-rather than shipping.
+The bridge ships in `@particle-academy/agent-integrations` 0.34.0 or later, not in this package, so a consumer who wants the surfaces without an agent installs nothing extra. It exposes `passkey_list`, `passkey_status`, `passkey_rename`, `passkey_revoke` (which only stages a revoke for the human) and `passkey_begin_enrollment`, and deliberately no tool that completes a ceremony. How to wire it is in [AGENTS.md](./AGENTS.md#letting-an-agent-drive-it-mcp-bridge).
 
 ---
 
@@ -443,20 +406,6 @@ rather than shipping.
 | `PasskeyActivityEvent` | The `onActivity` payload |
 
 ---
-
-## Development
-
-```bash
-npm install
-npm test       # vitest — builds first (`pretest`) so the packaging assertions are real
-npm run lint   # tsc --noEmit && eslint .
-npm run build  # tsup
-```
-
-Tests render against a real document (jsdom) and read the DOM back; a mock that
-agrees with whatever we rendered proves nothing. The WebAuthn API is stubbed and
-never called for real — there is no authenticator in CI, and a test that needs
-one is a test that never runs.
 
 ## License
 
